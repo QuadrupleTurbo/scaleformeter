@@ -21,7 +21,7 @@ This resource requires the **scaleformeter_assets** resource to run, which you c
 | /sfm or 5 key       |  Shows/hides the speedometer.                       |
 | /sfm prev     | Navigates to the previous speedometer                        |
 | /sfm next  | Navigates to the next speedometer                      |
-| /sfm unit               | Changes the speed unit to either mph or kmh                      |
+| /sfm unit               | Changes the speed unit to either MPH or KMH                      |
 | /sfm dim                           | Changes the dimension of the speedometer to either 2D or 3D                      |
 
 # Preview
