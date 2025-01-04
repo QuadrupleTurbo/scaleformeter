@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+      <LangVersion>latest</LangVersion>
+      <TargetFramework>netstandard2.0</TargetFramework>
+      <DebugType>portable</DebugType>
+      <TargetName>$(AssemblyName).net</TargetName>
+      <DefineConstants>SERVER</DefineConstants>
+    </PropertyGroup>
+  
+    <ItemGroup>
+      <PackageReference Include="CitizenFX.Core.Server" Version="1.0.8384" />
+  
+      <Compile Include="..\Shared\**\*.cs" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Reference Include="Newtonsoft.Json">
+        <HintPath>..\_dependencies\Newtonsoft.Json.dll</HintPath>
+      </Reference>
+    </ItemGroup>
+  
+    <ItemGroup>
+      <Folder Include="Utils\" />
+      <Folder Include="..\Shared\" />
+    </ItemGroup>
+  
+    <ItemGroup>
+      <Compile Update="..\Shared\Json.cs" Link="Utils\Json.cs" />
+      <Compile Update="..\Shared\Logger.cs" Link="Utils\Logger.cs" />
+    </ItemGroup>
+
+    <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+      <Exec Command="$(SolutionDir)build.bat &quot;$(TargetDir)$(TargetFileName)&quot; &quot;server&quot;" />
+    </Target>
+</Project>
+  
