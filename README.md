@@ -26,3 +26,6 @@ This resource requires the **scaleformeter_assets** resource to run, which you c
 
 # Preview
 https://github.com/user-attachments/assets/402ed21f-efe0-42bf-9f91-dd90e825720c
+
+# Support
+[Discord](discord.gg/K3zsc5f3VE)
