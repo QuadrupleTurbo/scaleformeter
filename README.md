@@ -15,5 +15,14 @@ This resource requires the **scaleformeter_assets** resource to run, which you c
 - Includes handbrake, ABS, drift, speed (mph/kmh), gears and accelerator/brake indicators
 - Kvp saving for the last selected speedo and the last known display state
 
+# Commands
+| Command                                         | Description                               |
+|-------------------------------------|----------------------------|
+| /sfm or 5 key       |  Shows/hides the speedometer.                       |
+| /sfm prev     | Navigates to the previous speedometer                        |
+| /sfm next  | Navigates to the next speedometer                      |
+| /sfm unit               | Changes the speed unit to either mph or kmh                      |
+| /sfm dim                           | Changes the dimension of the speedometer to either 2D or 3D                      |
+
 # Preview
 https://github.com/user-attachments/assets/402ed21f-efe0-42bf-9f91-dd90e825720c
