@@ -3,7 +3,7 @@
 # Scaleformeter Script
 **This is the script side of Scaleformeter, which is a speedometer resource entirely built from scaleforms.**
 
-# Note
+# Important Note
 This resource requires the **scaleformeter_assets** resource to run, which you can find on Tebex [here](https://sapheneiastudios.tebex.io/package/6614768)!
 
 # Features
