@@ -306,8 +306,20 @@ namespace scaleformeter.Client
         private async Task ScaleformThread()
         {
             // General checks
-            if (!_scaleformIsReady || !_isDisplaying || API.IsPauseMenuActive() || !Screen.Fading.IsFadedIn || API.GetFollowVehicleCamViewMode() == 4 || _creatingBox || _isDeletingBox)
+            if 
+            (
+                !_scaleformIsReady ||
+                !_isDisplaying ||
+                API.IsPauseMenuActive() ||
+                !Screen.Fading.IsFadedIn ||
+                API.GetFollowVehicleCamViewMode() == 4 ||
+                _creatingBox || 
+                _isDeletingBox ||
+                !Game.PlayerPed.IsInVehicle()
+            )
+            {
                 return;
+            }
 
             // Check if the vehicle is appropriate
             if (_vehicle != null && _vehicle.Exists())
@@ -317,91 +329,78 @@ namespace scaleformeter.Client
                     return;
             }
 
-            // Detect if the player's current vehicle has changed
-            if (Game.PlayerPed.IsInVehicle())
+            var currentVehicle = Game.PlayerPed.CurrentVehicle;
+            if (_vehicle != currentVehicle)
             {
-                var currentVehicle = Game.PlayerPed.CurrentVehicle;
-                if (_vehicle != currentVehicle)
-                {
-                    if (_vehicle != null)
-                    {
-                        await DeleteBox();
-                    }
-                    _vehicle = currentVehicle;
-                }
-                if (!_vehicle.Exists())
-                {
+                if (_vehicle != null)
                     await DeleteBox();
-                    _vehicle = currentVehicle;
-                }
-                if (_vehicle.GetPedOnSeat(VehicleSeat.Driver) != Game.PlayerPed)
-                    return;
+                _vehicle = currentVehicle;
+            }
+            if (!_vehicle.Exists())
+            {
+                await DeleteBox();
+                _vehicle = currentVehicle;
+            }
+            if (_vehicle.GetPedOnSeat(VehicleSeat.Driver) != Game.PlayerPed)
+                return;
 
-                if (_obj != null && !_obj.Exists())
-                    await DeleteBox();
+            if (_obj != null && !_obj.Exists())
+                await DeleteBox();
 
-                var ignition = _vehicle.IsEngineRunning;
-                var speed = _vehicle.Speed;
-                var kmh = speed * 3.6f;
-                var mph = speed * 2.23693629f;
-                var gear = _vehicle.CurrentGear;
-                var rpm = _vehicle.CurrentRPM;
-                var accel = API.GetControlNormal(0, (int)Control.VehicleAccelerate);
-                var brake = API.GetControlNormal(0, (int)Control.VehicleBrake);
-                var handbrake = API.GetControlNormal(0, (int)Control.VehicleHandbrake);
-                var abs = (API.GetVehicleWheelSpeed(_vehicle.Handle, 0) == 0.0) && (_vehicle.Speed > 0.0);
-                var lights = _vehicle.AreLightsOn || _vehicle.AreHighBeamsOn;
-                var classType = _vehicle.ClassType;
-                var isDrifting = IsDrifting(_vehicle);
+            var ignition = _vehicle.IsEngineRunning;
+            var speed = _vehicle.Speed;
+            var kmh = speed * 3.6f;
+            var mph = speed * 2.23693629f;
+            var gear = _vehicle.CurrentGear;
+            var rpm = _vehicle.CurrentRPM;
+            var accel = API.GetControlNormal(0, (int)Control.VehicleAccelerate);
+            var brake = API.GetControlNormal(0, (int)Control.VehicleBrake);
+            var handbrake = API.GetControlNormal(0, (int)Control.VehicleHandbrake);
+            var abs = (API.GetVehicleWheelSpeed(_vehicle.Handle, 0) == 0.0) && (_vehicle.Speed > 0.0);
+            var lights = _vehicle.AreLightsOn || _vehicle.AreHighBeamsOn;
+            var classType = _vehicle.ClassType;
+            var isDrifting = IsDrifting(_vehicle);
 
-                _scaleform.CallFunction("SET_SPEEDO_INFO", ignition, kmh, mph, gear, rpm, accel, brake, handbrake, abs, lights, isDrifting, (int)classType);
+            _scaleform.CallFunction("SET_SPEEDO_INFO", ignition, kmh, mph, gear, rpm, accel, brake, handbrake, abs, lights, isDrifting, (int)classType);
 
-                // The scaleform needs to adjust to the new resolution
-                if (Screen.Resolution != _lastResolution)
+            // The scaleform needs to adjust to the new resolution
+            if (Screen.Resolution != _lastResolution)
+            {
+                _lastResolution = Screen.Resolution;
+                ScaleformInit();
+            }
+
+            // If the display is 2D, render it
+            if (!_display3D)
+            {
+                _scaleform.Render2D();
+                return;
+            }
+
+            // Create the box if it hasn't been created yet
+            if (!_hasBoxBeenCreated || _obj == null)
+            {
+                await CreateBox();
+                _hasBoxBeenCreated = true;
+                return;
+            }
+
+            // Render the scaleform in 3D via rendertargets
+            API.SetTextRenderId(_rtHandle);
+            API.Set_2dLayer(4);
+            API.SetScaleformFitRendertarget(_scaleform.Handle, true);
+            API.SetScriptGfxDrawBehindPausemenu(true);
+            _scaleform.Render2D();
+            API.SetTextRenderId(API.GetDefaultScriptRendertargetRenderId());
+            API.SetScriptGfxDrawBehindPausemenu(false);
+            if (Main.Instance.DebugMode)
+            {
+                Tools.DrawEntityBoundingBox(_vehicle, 250, 150, 0, 100);
+                Vector3[] array = Tools.GetEntityBoundingBox(_vehicle.Handle);
+                for (int i = 0; i < array.Length; i++)
                 {
-                    _lastResolution = Screen.Resolution;
-                    ScaleformInit();
-                }
-
-                if (!_display3D)
-                {
-                    _scaleform.Render2D();
-                }
-                else
-                {
-                    if (!_hasBoxBeenCreated)
-                    {
-                        await CreateBox();
-                        _hasBoxBeenCreated = true;
-                    }
-                    else
-                    {
-                        if (_obj == null)
-                        {
-                            await CreateBox();
-                            _hasBoxBeenCreated = true;
-                        }
-                        else
-                        {
-                            API.SetTextRenderId(_rtHandle);
-                            API.Set_2dLayer(4);
-                            API.SetScaleformFitRendertarget(_scaleform.Handle, true);
-                            API.SetScriptGfxDrawBehindPausemenu(true);
-                            _scaleform.Render2D();
-                            API.SetTextRenderId(API.GetDefaultScriptRendertargetRenderId());
-                            API.SetScriptGfxDrawBehindPausemenu(false);
-                            if (Main.Instance.DebugMode)
-                            {
-                                Tools.DrawEntityBoundingBox(_vehicle, 250, 150, 0, 100);
-                                Vector3[] array = Tools.GetEntityBoundingBox(_vehicle.Handle);
-                                for (int i = 0; i < array.Length; i++)
-                                {
-                                    Vector3 item = array[i];
-                                    Tools.DrawText3D(item, i.ToString());
-                                }
-                            }
-                        }
-                    }
+                    Vector3 item = array[i];
+                    Tools.DrawText3D(item, i.ToString());
                 }
             }
 
