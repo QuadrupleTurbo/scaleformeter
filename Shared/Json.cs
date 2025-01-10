@@ -21,7 +21,6 @@ namespace scaleformeter
             }
             catch (Exception ex)
             {
-                ex.ToString().Error();
                 obj = null;
             }
 
@@ -44,7 +43,6 @@ namespace scaleformeter
             }
             catch (Exception ex)
             {
-                ex.ToString().Error();
                 obj = default;
             }
 
@@ -68,7 +66,6 @@ namespace scaleformeter
             }
             catch (Exception ex)
             {
-                ex.ToString().Error();
                 json = null;
             }
 
