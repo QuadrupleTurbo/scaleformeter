@@ -1,19 +1,33 @@
-﻿using CitizenFX.Core;
-using CitizenFX.Core.Native;
-using CitizenFX.Core.UI;
-using Newtonsoft.Json;
-using scaleformeter.Client.Utils;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using CitizenFX.Core;
+using CitizenFX.Core.Native;
+using Newtonsoft.Json;
+
+#if CLIENT
+
+using CitizenFX.Core.UI;
+using scaleformeter.Client.Utils;
+
+#endif
+
+#if SERVER
+
+using scaleformeter.Server;
+
+#endif
 
 namespace scaleformeter.Client
 {
     public class Speedos
     {
         #region Fields
+
+#if CLIENT
 
         /// <summary>
         /// To indicate if the scaleform is ready.
@@ -41,11 +55,6 @@ namespace scaleformeter.Client
         private bool _useMph = true;
 
         /// <summary>
-        /// Testing.
-        /// </summary>
-        private float _currBoost = 0;
-
-        /// <summary>
         /// The render target handle.
         /// </summary>
         private int _rtHandle;
@@ -68,17 +77,12 @@ namespace scaleformeter.Client
         /// <summary>
         /// The render target name.
         /// </summary>
-        private string _rtName = "clubhouse_plan_01a";
+        private readonly string _rtName = "clubhouse_plan_01a";
 
         /// <summary>
         /// The object name.
         /// </summary>
-        private string _objName = "bkr_prop_rt_clubhouse_plan_01a";
-
-        /// <summary>
-        /// The object opacity.
-        /// </summary>
-        private int _objOpacity = 255;
+        private readonly string _objName = "bkr_prop_rt_clubhouse_plan_01a";
 
         /// <summary>
         /// The current speedometer configuration.
@@ -93,7 +97,7 @@ namespace scaleformeter.Client
         /// <summary>
         /// All the speedometer configurations.
         /// </summary>
-        private readonly Dictionary<string, SpeedoConf> _speedoConfigs = [];
+        private Dictionary<string, SpeedoConf> _speedoConfigs = [];
 
         /// <summary>
         /// The last resolution.
@@ -115,9 +119,20 @@ namespace scaleformeter.Client
         /// </summary>
         private bool _isDeletingBox;
 
+#endif
+
+#if SERVER
+
+        private readonly Dictionary<string, SpeedoConf> _speedoConfs = [];
+        private readonly Dictionary<Player, List<Entity>> _playerProps = [];
+
+#endif
+
         #endregion
 
         #region Constructor
+
+#if CLIENT
 
         public Speedos()
         {
@@ -127,58 +142,164 @@ namespace scaleformeter.Client
 
             // Initialize scaleform
             ScaleformInit();
-
-            // Register commands
-            API.RegisterCommand("sfm", new Action<int, List<object>, string>(async (source, args, raw) =>
-            {
-                if (args.Count == 0)
-                {
-                    DisplaySpeedo();
-                    return;
-                }
-                else if (args.Count == 1)
-                {
-                    switch (args[0])
-                    {
-                        case "prev":
-                            _scaleform.CallFunction("SWITCH_SPEEDO_PREV", _display3D);
-                            GetCurrentSpeedo(true);
-                            break;
-                        case "next":
-                            _scaleform.CallFunction("SWITCH_SPEEDO_NEXT", _display3D);
-                            GetCurrentSpeedo(true);
-                            break;
-                        case "unit":
-                            _scaleform.CallFunction("SWITCH_SPEED_UNIT");
-                            _useMph = !_useMph;
-                            API.SetResourceKvp("scaleformeter:useMph", _useMph.ToString());
-                            break;
-                        case "dim":
-                            _display3D = !_display3D;
-                            _scaleform.CallFunction("SWITCH_SPEEDO_DIMENSION", _display3D);
-                            if (_obj != null)
-                                _obj.Opacity = !_display3D ? 0 : _objOpacity;
-                            break;
-                    }
-                }
-            }), false);
         }
+
+#endif
+
+#if SERVER
+
+        public Speedos()
+        {
+            // Add event handlers
+            Main.Instance.AddEventHandler("scaleformeter:requestConfigs", new Action<Player, NetworkCallbackDelegate>(RequestConfigs));
+            Main.Instance.AddEventHandler("scaleformeter:createProp", new Action<Player, int, NetworkCallbackDelegate>(CreateProp));
+            Main.Instance.AddEventHandler("scaleformeter:deleteProps", new Action<Player>(DeleteProps));
+            Main.Instance.AddEventHandler("playerDropped", new Action<Player>(PlayerDropped));
+
+            // Load configs once
+            LoadConfigs();
+        }
+
+#endif
 
         #endregion
 
         #region Events
 
+#if CLIENT
+
+        #region Scaleform updated
+
         private void ScaleformUpdated(string name) => ScaleformInit(name);
+
+        #endregion
+
+        #region On resource stop
 
         private async void OnResourceStop(string resourceName)
         {
-            if (API.GetCurrentResourceName() != resourceName) return;
+            if (Main.Instance.ResourceName != resourceName) return;
             _obj?.Delete();
         }
 
         #endregion
 
+#endif
+
+#if SERVER
+
+        #region Request configs
+
+        private async void RequestConfigs([FromSource] Player source, NetworkCallbackDelegate cb) => await cb(Json.Stringify(_speedoConfs));      
+
+        #endregion
+
+        #region Create prop
+
+        private async void CreateProp([FromSource] Player source, int netId, NetworkCallbackDelegate cb)
+        {
+            try
+            {
+                var currTime = API.GetGameTimer();
+                while (Entity.FromNetworkId(netId) == null && API.GetGameTimer() - currTime < 7000)
+                {
+                    "Waiting for the prop to not be null...".Log();
+                    await BaseScript.Delay(0);
+                }
+
+                if (Entity.FromNetworkId(netId) == null)
+                {
+                    "Object was null".Error();
+                    await cb(false);
+                    return;
+                }
+
+                // Transform to prop from network id
+                Prop obj = Entity.FromNetworkId(netId) as Prop;
+
+                currTime = API.GetGameTimer();
+                while (!API.DoesEntityExist(obj.Handle) && API.GetGameTimer() - currTime < 7000)
+                {
+                    "Waiting for the prop to exist...".Log();
+                    await BaseScript.Delay(0);
+                }
+
+                if (!API.DoesEntityExist(obj.Handle))
+                {
+                    "Prop didn't exist!".Error();
+                    await cb(false);
+                    return;
+                }
+
+                if (!_playerProps.ContainsKey(source))
+                    _playerProps.Add(source, [obj]);
+                else
+                    _playerProps[source].Add(obj);
+
+                $"Prop was created: {obj.Handle}:{Main.Instance.Clients[API.NetworkGetEntityOwner(obj.Handle)].Name}".Log();
+
+                await cb(true);
+            }
+            catch (Exception e)
+            {
+                e.ToString().Error();
+                await cb(false);
+            }
+        }
+
+        #endregion
+
+        #region Delete props
+
+        private async void DeleteProps([FromSource] Player source)
+        {
+            try
+            {
+                if (_playerProps.ContainsKey(source))
+                {
+                    var newList = new List<Entity>(_playerProps[source]);
+                    foreach (var prop in newList)
+                    {
+                        $"Prop {prop.Handle} was deleted from {source.Name}".Log();
+                        API.DeleteEntity(prop.Handle);
+                        _playerProps[source].Remove(prop);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                e.ToString().Error();
+            }
+        }
+
+        #endregion
+
+        #region Player dropped
+
+        private async void PlayerDropped([FromSource] Player source)
+        {
+            $"Player dropped {source.Name}".Log();
+            if (_playerProps.ContainsKey(source))
+            {
+                var newList = new List<Entity>(_playerProps[source]);
+                foreach (var prop in newList)
+                {
+                    $"Prop {prop.Handle} was deleted from {source.Name}".Log();
+                    API.DeleteEntity(prop.Handle);
+                }
+                _playerProps.Remove(source);
+            }
+        }
+
+        #endregion
+
+#endif
+
+        #endregion
+
         #region Ticks
+
+#if CLIENT
 
         #region Scaleform thread
 
@@ -289,9 +410,13 @@ namespace scaleformeter.Client
 
         #endregion
 
+#endif
+
         #endregion
 
         #region Tools
+
+#if CLIENT
 
         #region Scaleform init
 
@@ -300,29 +425,34 @@ namespace scaleformeter.Client
             if (!string.IsNullOrEmpty(gfx) && !gfx.StartsWith("scaleformeter"))
                 return;
 
+            // Create a TaskCompletionSource to await the event completion
+            var tc = new TaskCompletionSource<string>();
+
             // Load all the configs (only once)
             if (string.IsNullOrEmpty(gfx) && !_scaleformIsReady)
             {
+                // Load the main config from the client
                 _mainConf = Json.Parse<MainConf>(API.LoadResourceFile(API.GetCurrentResourceName(), "configs/main.json"));
-                var custom1 = Json.Parse<SpeedoConf>(API.LoadResourceFile(API.GetCurrentResourceName(), "configs/speedos/custom1.json"));
-                var custom2 = Json.Parse<SpeedoConf>(API.LoadResourceFile(API.GetCurrentResourceName(), "configs/speedos/custom2.json"));
+
+                // We need the main config to be loaded
                 if (_mainConf == null)
                 {
                     "Main config has an error, please check the config syntax.".Error();
                     return;
                 }
-                else if (custom1 == null)
-                {
-                    "Speedometer Custom1 config has an error, please check the config syntax.".Error();
-                    return;
-                }
-                else if (custom2 == null)
-                {
-                    "Speedometer Custom2 config has an error, please check the config syntax.".Error();
-                    return;
-                }
-                _speedoConfigs.Add("custom1", custom1);
-                _speedoConfigs.Add("custom2", custom2);
+
+                // Request the configs from the server
+                BaseScript.TriggerServerEvent("scaleformeter:requestConfigs", new Action<string>(tc.SetResult));
+
+                // Wait until the event is completed
+                _speedoConfigs = Json.Parse<Dictionary<string, SpeedoConf>>(await tc.Task);
+            }
+
+            // If the configs are empty, return
+            if (_speedoConfigs.Count == 0)
+            {
+                "No speedo configs found!".Error();
+                return;
             }
 
             // Not ready yet
@@ -339,13 +469,13 @@ namespace scaleformeter.Client
             if (API.GetResourceState("swfLiveEditor") == "started")
             {
                 // Create a TaskCompletionSource to await the event completion
-                var result = new TaskCompletionSource<string>();
+                tc = new TaskCompletionSource<string>();
 
                 // Get the correct scaleform from the server
-                BaseScript.TriggerServerEvent("swfLiveEditor:getCorrectScaleform", "scaleformeter", new Action<string>(result.SetResult));
+                BaseScript.TriggerServerEvent("swfLiveEditor:getCorrectScaleform", "scaleformeter", new Action<string>(tc.SetResult));
 
                 // Wait until the event is completed
-                gfx = await result.Task;
+                gfx = await tc.Task;
             }
             else
                 gfx ??= "scaleformeter";
@@ -359,14 +489,25 @@ namespace scaleformeter.Client
 
             // Get whether the speed unit is mph or kmh
             var speedUnitKvp = API.GetResourceKvpString("scaleformeter:useMph");
-            $"Speed unit KVP: {speedUnitKvp}".Log();
+            $"Speed unit use mph?: {speedUnitKvp}".Log();
             _useMph = !string.IsNullOrEmpty(speedUnitKvp) ? bool.Parse(speedUnitKvp) : _useMph;
 
             // Send the configs to the scaleform
             foreach (var conf in _speedoConfigs)
             {
                 string colour = $"{conf.Value.ThemeColour.R},{conf.Value.ThemeColour.G},{conf.Value.ThemeColour.B}";
-                _scaleform.CallFunction("SET_SPEEDO_CONFIG", conf.Key, conf.Value.Opacity * 100, colour, conf.Value.PosOffset2D.X / 1000, conf.Value.PosOffset2D.Y / 1000, conf.Value.PosOffset2D.Scale, conf.Value.PosOffset3D.Scale, _useMph);
+                _scaleform.CallFunction
+                (
+                    "SET_SPEEDO_CONFIG",
+                    conf.Key,
+                    conf.Value.Opacity * 100 /* Scaleforms are 0 - 100 alpha */,
+                    colour,
+                    conf.Value.PosOffset2D.X / 1000,
+                    conf.Value.PosOffset2D.Y / 1000,
+                    conf.Value.PosOffset2D.Scale,
+                    conf.Value.PosOffset3D.Scale,
+                    _useMph
+                );
             }
 
             // Set the display state depending on the saved KVP state
@@ -383,6 +524,41 @@ namespace scaleformeter.Client
 
             // Attach the ticks
             Main.Instance.AttachTick(ScaleformThread);
+
+            // Register commands
+            API.RegisterCommand("sfm", new Action<int, List<object>, string>(async (source, args, raw) =>
+            {
+                if (args.Count == 0)
+                {
+                    DisplaySpeedo();
+                    return;
+                }
+                else if (args.Count == 1)
+                {
+                    switch (args[0])
+                    {
+                        case "prev":
+                            _scaleform.CallFunction("SWITCH_SPEEDO_PREV", _display3D);
+                            GetCurrentSpeedo(true);
+                            break;
+                        case "next":
+                            _scaleform.CallFunction("SWITCH_SPEEDO_NEXT", _display3D);
+                            GetCurrentSpeedo(true);
+                            break;
+                        case "unit":
+                            _scaleform.CallFunction("SWITCH_SPEED_UNIT");
+                            _useMph = !_useMph;
+                            API.SetResourceKvp("scaleformeter:useMph", _useMph.ToString());
+                            break;
+                        case "dim":
+                            _display3D = !_display3D;
+                            _scaleform.CallFunction("SWITCH_SPEEDO_DIMENSION", _display3D);
+                            if (_obj != null)
+                                _obj.Opacity = !_display3D ? 0 : (int)(_currentConf.Opacity * 255);
+                            break;
+                    }
+                }
+            }), false);
 
             // Register the key mapping
             API.RegisterKeyMapping("sfm", "Scaleformeter", "keyboard", _mainConf.DefaultDisplayKey);
@@ -471,22 +647,9 @@ namespace scaleformeter.Client
             _scaleform.CallFunction("SET_CURRENT_SPEEDO_BY_ID", currentSpeedo, _display3D);
         }
 
-        private bool IsDrifting(Vehicle vehicle)
-        {
-            if (vehicle.Model.IsBike || vehicle.Model.IsBicycle || vehicle.Model.IsBoat || vehicle.Model.IsHelicopter || vehicle.Model.IsPlane || vehicle.Model.IsTrain || vehicle.Model.IsCargobob)
-                return false;
+        #endregion
 
-            float speed = API.GetEntitySpeed(vehicle.Handle);
-            Vector3 relativeVector = API.GetEntitySpeedVector(vehicle.Handle, true);
-            double angle = Math.Acos(relativeVector.Y / speed) * 180f / Math.PI;
-
-            if (double.IsNaN(angle))
-            {
-                angle = 0;
-            }
-
-            return speed * 3.6f > 15 && vehicle.CurrentGear != 0 && angle > 15;
-        }
+        #region Create box
 
         private async Task CreateBox()
         {
@@ -545,10 +708,6 @@ namespace scaleformeter.Client
             _creatingBox = false;
         }
 
-        #endregion
-
-        #region Update box params
-
         private void UpdateBoxParams()
         {
             // Check if the object exists
@@ -556,7 +715,7 @@ namespace scaleformeter.Client
                 return;
 
             // Settings
-            _obj.Opacity = _objOpacity;
+            _obj.Opacity = (int)(_currentConf.Opacity * 255);
 
             // Get vehicle dimensions    
             Vector3 vehicleDimensions = _vehicle.Model.GetDimensions();
@@ -612,86 +771,60 @@ namespace scaleformeter.Client
 
         #endregion
 
-        #region Get turbo boost
+        #region Is drifting
 
-        public float GetTurboBoost(Vehicle vehicle)
+        private bool IsDrifting(Vehicle vehicle)
         {
-            var turboData = new Turbo()
-            {
-                maxBoost = 15f,
-                maxVacuum = 7.25f,
-                vacuumRate = 0.91f,
-                rpmSpoolStart = 0.3f,
-                rpmSpoolEnd = 0.85f,
-                boostRate = 0.899f
-            };
+            if (vehicle.Model.IsBike || vehicle.Model.IsBicycle || vehicle.Model.IsBoat || vehicle.Model.IsHelicopter || vehicle.Model.IsPlane || vehicle.Model.IsTrain || vehicle.Model.IsCargobob)
+                return false;
 
-            float currentBoost;
-            float newBoost;
-            float maxBoost = turboData.maxBoost / 14.5038f;
-            float maxVacuum = (turboData.maxVacuum / 14.5038f) * -1;
+            float speed = API.GetEntitySpeed(vehicle.Handle);
+            Vector3 relativeVector = API.GetEntitySpeedVector(vehicle.Handle, true);
+            double angle = Math.Acos(relativeVector.Y / speed) * 180f / Math.PI;
 
-            if (!API.IsToggleModOn(vehicle.Handle, 18) || !API.GetIsVehicleEngineRunning(vehicle.Handle))
+            if (double.IsNaN(angle))
             {
-                currentBoost = _currBoost;
-                newBoost = Tools.Lerp(currentBoost, 0.0f, 1.0f - (float)Math.Pow(1.0f - turboData.vacuumRate, 0.0166667f));
-                return newBoost;
+                angle = 0;
             }
 
-            currentBoost = _currBoost;
-            currentBoost = Tools.Clamp(currentBoost, maxVacuum, maxBoost);
-
-            float rpm = vehicle.CurrentRPM;
-
-            float boostClosed = Tools.Map(rpm, 0.2f, 1.0f, 0.0f, maxVacuum);
-            boostClosed = Tools.Clamp(boostClosed, maxVacuum, 0.0f);
-
-            float boostWOT = Tools.Map(rpm, turboData.rpmSpoolStart, turboData.rpmSpoolEnd, 0.0f, maxBoost);
-            boostWOT = Tools.Clamp(boostWOT, 0.0f, maxBoost);
-
-            float now = Tools.Map(API.GetVehicleThrottleOffset(vehicle.Handle), 0.0f, 1.0f, boostClosed, boostWOT);
-
-            float lerpRate;
-            if (now > currentBoost)
-                lerpRate = turboData.boostRate;
-            else
-                lerpRate = turboData.vacuumRate;
-
-            newBoost = Tools.Lerp(currentBoost, now, 1.0f - (float)Math.Pow(1.0f - lerpRate, 0.0166667f));
-            float limBoost = maxBoost;
-
-            newBoost = Tools.Clamp(newBoost, maxVacuum, maxBoost);
-
-
-            return newBoost;
-        }
-
-        public struct Turbo
-        {
-            public float maxBoost;
-            public float minBoost;
-            public float maxVacuum;
-            public float vacuumRate;
-            public float rpmSpoolStart;
-            public float rpmSpoolEnd;
-            public float boostRate;
-        };
-
-        #endregion
-
-        #region Wipe KVPs
-
-        /// <summary>
-        /// Mostly for debug purposes.
-        /// </summary>
-        private void WipeKvps()
-        {
-            API.DeleteResourceKvp("scaleformeter:displayState");
-            API.DeleteResourceKvp("scaleformeter:lastSpeedo");
-            API.DeleteResourceKvp("scaleformeter:useMph");
+            return speed * 3.6f > 15 && vehicle.CurrentGear != 0 && angle > 15;
         }
 
         #endregion
+
+#endif
+
+#if SERVER
+
+        #region Load configs
+
+        private void LoadConfigs()
+        {
+            // Get all the possible speedo configurations
+            Dictionary<string, SpeedoConf> speedoConfs = [];
+            Directory.EnumerateFiles($"{API.GetResourcePath(Main.Instance.ResourceName)}/configs/speedos", "*.json").ToList().ForEach(file =>
+            {
+                try
+                {
+                    var speedo = Json.Parse<SpeedoConf>(API.LoadResourceFile(Main.Instance.ResourceName, $"configs/speedos/{Path.GetFileNameWithoutExtension(file)}.json"));
+                    if (speedo != null)
+                    {
+                        $"{Path.GetFileNameWithoutExtension(file)}.json has been loaded!".Log();
+                        _speedoConfs.Add(Path.GetFileNameWithoutExtension(file), speedo);
+                    }
+                    else
+                        $"{Path.GetFileNameWithoutExtension(file)} has an error, please check the config syntax.".Error();
+                }
+                catch (Exception e)
+                {
+                    $"Error loading speedo {Path.GetFileNameWithoutExtension(file)}, here's the error: {e.Message}".Error();
+                }
+            });
+        }
+
+        #endregion
+
+#endif
 
         #endregion
 
@@ -717,7 +850,6 @@ namespace scaleformeter.Client
             [JsonProperty("3dPosOffset")]
             public PosOffset3D PosOffset3D { get; set; }
         }
-
 
         public class Rgb
         {
