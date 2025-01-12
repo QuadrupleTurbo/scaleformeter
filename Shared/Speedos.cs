@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using CitizenFX.Core;
 using CitizenFX.Core.Native;
 using Newtonsoft.Json;
+using System.Collections;
+
 
 #if CLIENT
 
@@ -63,6 +65,11 @@ namespace scaleformeter.Client
         /// The current vehicle.
         /// </summary>
         private Vehicle _vehicle;
+
+        /// <summary>
+        /// The current vehicle name.
+        /// </summary>
+        private string _currentVehicleName;
 
         /// <summary>
         /// To indicate if the box has been created.
@@ -335,11 +342,13 @@ namespace scaleformeter.Client
                 if (_vehicle != null)
                     await DeleteBox();
                 _vehicle = currentVehicle;
+                _currentVehicleName = Tools.ToTitleCase(Game.GetGXTEntry(_vehicle.DisplayName));
             }
             if (!_vehicle.Exists())
             {
                 await DeleteBox();
                 _vehicle = currentVehicle;
+                _currentVehicleName = Tools.ToTitleCase(Game.GetGXTEntry(_vehicle.DisplayName));
             }
             if (_vehicle.GetPedOnSeat(VehicleSeat.Driver) != Game.PlayerPed)
                 return;
@@ -347,6 +356,7 @@ namespace scaleformeter.Client
             if (_obj != null && !_obj.Exists())
                 await DeleteBox();
 
+            // All the vehicle data
             var ignition = _vehicle.IsEngineRunning;
             var speed = _vehicle.Speed;
             var kmh = speed * 3.6f;
@@ -355,13 +365,44 @@ namespace scaleformeter.Client
             var rpm = _vehicle.CurrentRPM;
             var accel = API.GetControlNormal(0, (int)Control.VehicleAccelerate);
             var brake = API.GetControlNormal(0, (int)Control.VehicleBrake);
-            var handbrake = API.GetControlNormal(0, (int)Control.VehicleHandbrake);
-            var abs = (API.GetVehicleWheelSpeed(_vehicle.Handle, 0) == 0.0) && (_vehicle.Speed > 0.0);
-            var lights = _vehicle.AreLightsOn || _vehicle.AreHighBeamsOn;
-            var classType = _vehicle.ClassType;
+            var dashLights = API.GetVehicleDashboardLights();
+            var isLeftIndicatorOn = (dashLights & (1 << 0)) != 0;
+            var isRightIndicatorOn = (dashLights & (1 << 1)) != 0;
+            var isHandbrakeLightOn = (dashLights & (1 << 2)) != 0;
+            var isEngineLightOn = (dashLights & (1 << 3)) != 0;
+            var isAbsLightOn = (API.GetVehicleWheelSpeed(_vehicle.Handle, 0) == 0.0) && (_vehicle.Speed > 0.0); /* The dashboard abs doesn't show */
+            var isGasLightOn = (dashLights & (1 << 5)) != 0;
+            var isOilLightOn = (dashLights & (1 << 6)) != 0;
+            var isHeadLightsOn = (dashLights & (1 << 7)) != 0;
+            var isHighBeamLightsOn = (dashLights & (1 << 8)) != 0;
+            var isBatteryLightOn = (dashLights & (1 << 9)) != 0;
             var isDrifting = IsDrifting(_vehicle);
+            var classType = _vehicle.ClassType;
 
-            _scaleform.CallFunction("SET_SPEEDO_INFO", ignition, kmh, mph, gear, rpm, accel, brake, handbrake, abs, lights, isDrifting, (int)classType);
+            _scaleform.CallFunction
+            (
+                "SET_SPEEDO_INFO",
+                ignition,
+                kmh,
+                mph,
+                gear,
+                rpm,
+                accel,
+                brake,
+                isLeftIndicatorOn,
+                isRightIndicatorOn,
+                isHandbrakeLightOn,
+                isEngineLightOn,
+                isAbsLightOn,
+                isGasLightOn,
+                isOilLightOn,
+                isHeadLightsOn,
+                isHighBeamLightsOn,
+                isBatteryLightOn,
+                isDrifting,
+                (int)classType,
+                _currentVehicleName
+            );
 
             // The scaleform needs to adjust to the new resolution
             if (Screen.Resolution != _lastResolution)
