@@ -44,36 +44,34 @@ namespace scaleformeter
         internal static void Log(this string msg, bool notify = false)
         {
             if (string.IsNullOrEmpty(msg)) return;
+            if (!Main.Instance.DebugMode) return;
 
-            if (Main.Instance.DebugMode)
+            // Extracted each string from each "row" which would be a string separated with the \n character
+            List<string> rows = [.. msg.Split('\n')];
+
+            // Interate through the rows and fix up the strings
+            List<string> modifiedRows = [];
+            foreach (var row in rows)
             {
-                // Extracted each string from each "row" which would be a string separated with the \n character
-                List<string> rows = [.. msg.Split('\n')];
-
-                // Interate through the rows and fix up the strings
-                List<string> modifiedRows = [];
-                foreach (var row in rows)
+                List<string> currRow = [];
+                foreach (var word in row.Split())
                 {
-                    List<string> currRow = [];
-                    foreach (var word in row.Split())
-                    {
-                        var yes = word.Insert(0, "^2");
-                        currRow.Add(yes);
-                    }
-
-                    modifiedRows.Add(string.Join(" ", currRow));
+                    var yes = word.Insert(0, "^2");
+                    currRow.Add(yes);
                 }
 
-                // Make a new line
-                Debug.WriteLine();
-
-                // Now let's print the rows
-                foreach (var row in modifiedRows)
-                    Debug.WriteLine($"[{Main.Instance.ResourceName} Logs] [{new System.Diagnostics.StackFrame(1).GetMethod().Name}] " + row + "^7");
-
-                // Make a new line
-                Debug.WriteLine();
+                modifiedRows.Add(string.Join(" ", currRow));
             }
+
+            // Make a new line
+            Debug.WriteLine();
+
+            // Now let's print the rows
+            foreach (var row in modifiedRows)
+                Debug.WriteLine($"[{Main.Instance.ResourceName} Logs] [{new System.Diagnostics.StackFrame(1).GetMethod().Name}] " + row + "^7");
+
+            // Make a new line
+            Debug.WriteLine();
 
             if (notify)
             {
@@ -100,35 +98,32 @@ namespace scaleformeter
         {
             if (string.IsNullOrEmpty(msg)) return;
 
-            if (Main.Instance.DebugMode)
+            // Extracted each string from each "row" which would be a string separated with the \n character
+            List<string> rows = [.. msg.Split('\n')];
+
+            // Interate through the rows and fix up the strings
+            List<string> modifiedRows = [];
+            foreach (var row in rows)
             {
-                // Extracted each string from each "row" which would be a string separated with the \n character
-                List<string> rows = [.. msg.Split('\n')];
-
-                // Interate through the rows and fix up the strings
-                List<string> modifiedRows = [];
-                foreach (var row in rows)
+                List<string> currRow = [];
+                foreach (var word in row.Split())
                 {
-                    List<string> currRow = [];
-                    foreach (var word in row.Split())
-                    {
-                        var yes = word.Insert(0, "^5");
-                        currRow.Add(yes);
-                    }
-
-                    modifiedRows.Add(string.Join(" ", currRow));
+                    var yes = word.Insert(0, "^5");
+                    currRow.Add(yes);
                 }
 
-                // Make a new line
-                Debug.WriteLine();
-
-                // Now let's print the rows
-                foreach (var row in modifiedRows)
-                    Debug.WriteLine($"[{Main.Instance.ResourceName} Alerts] [{new System.Diagnostics.StackFrame(1).GetMethod().Name}] " + row + "^7");
-
-                // Make a new line
-                Debug.WriteLine();
+                modifiedRows.Add(string.Join(" ", currRow));
             }
+
+            // Make a new line
+            Debug.WriteLine();
+
+            // Now let's print the rows
+            foreach (var row in modifiedRows)
+                Debug.WriteLine($"[{Main.Instance.ResourceName} Alerts] [{new System.Diagnostics.StackFrame(1).GetMethod().Name}] " + row + "^7");
+
+            // Make a new line
+            Debug.WriteLine();
 
             if (notify)
             {
@@ -154,36 +149,34 @@ namespace scaleformeter
         internal static void Warning(this string msg, bool notify = false)
         {
             if (string.IsNullOrEmpty(msg)) return;
+            if (!Main.Instance.DebugMode) return;
 
-            if (Main.Instance.DebugMode)
+            // Extracted each string from each "row" which would be a string separated with the \n character
+            List<string> rows = [.. msg.Split('\n')];
+
+            // Interate through the rows and fix up the strings
+            List<string> modifiedRows = [];
+            foreach (var row in rows)
             {
-                // Extracted each string from each "row" which would be a string separated with the \n character
-                List<string> rows = [.. msg.Split('\n')];
-
-                // Interate through the rows and fix up the strings
-                List<string> modifiedRows = [];
-                foreach (var row in rows)
+                List<string> currRow = [];
+                foreach (var word in row.Split())
                 {
-                    List<string> currRow = [];
-                    foreach (var word in row.Split())
-                    {
-                        var yes = word.Insert(0, "^3");
-                        currRow.Add(yes);
-                    }
-
-                    modifiedRows.Add(string.Join(" ", currRow));
+                    var yes = word.Insert(0, "^3");
+                    currRow.Add(yes);
                 }
 
-                // Make a new line
-                Debug.WriteLine();
-
-                // Now let's print the rows
-                foreach (var row in modifiedRows)
-                    Debug.WriteLine($"[Warnings] [{new System.Diagnostics.StackFrame(1).GetMethod().Name}] " + row + "^7");
-
-                // Make a new line
-                Debug.WriteLine();
+                modifiedRows.Add(string.Join(" ", currRow));
             }
+
+            // Make a new line
+            Debug.WriteLine();
+
+            // Now let's print the rows
+            foreach (var row in modifiedRows)
+                Debug.WriteLine($"[Warnings] [{new System.Diagnostics.StackFrame(1).GetMethod().Name}] " + row + "^7");
+
+            // Make a new line
+            Debug.WriteLine();
 
             if (notify)
             {
@@ -209,35 +202,32 @@ namespace scaleformeter
         {
             if (string.IsNullOrEmpty(msg)) return;
 
-            if (Main.Instance.DebugMode)
+            // Extracted each string from each "row" which would be a string separated with the \n character
+            List<string> rows = [.. msg.Split('\n')];
+
+            // Interate through the rows and fix up the strings
+            List<string> modifiedRows = [];
+            foreach (var row in rows)
             {
-                // Extracted each string from each "row" which would be a string separated with the \n character
-                List<string> rows = [.. msg.Split('\n')];
-
-                // Interate through the rows and fix up the strings
-                List<string> modifiedRows = [];
-                foreach (var row in rows)
+                List<string> currRow = [];
+                foreach (var word in row.Split())
                 {
-                    List<string> currRow = [];
-                    foreach (var word in row.Split())
-                    {
-                        var yes = word.Insert(0, "^1");
-                        currRow.Add(yes);
-                    }
-
-                    modifiedRows.Add(string.Join(" ", currRow));
+                    var yes = word.Insert(0, "^1");
+                    currRow.Add(yes);
                 }
 
-                // Make a new line
-                Debug.WriteLine();
-
-                // Now let's print the rows
-                foreach (var row in modifiedRows)
-                    Debug.WriteLine($"[Errors] [{new System.Diagnostics.StackFrame(1).GetMethod().Name}] " + row + "^7");
-
-                // Make a new line
-                Debug.WriteLine();
+                modifiedRows.Add(string.Join(" ", currRow));
             }
+
+            // Make a new line
+            Debug.WriteLine();
+
+            // Now let's print the rows
+            foreach (var row in modifiedRows)
+                Debug.WriteLine($"[Errors] [{new System.Diagnostics.StackFrame(1).GetMethod().Name}] " + row + "^7");
+
+            // Make a new line
+            Debug.WriteLine();
 
             if (notify)
             {
@@ -418,7 +408,6 @@ namespace scaleformeter
         internal static void Error(this string msg, [CallerMemberName] string callerName = "")
         {
             if (string.IsNullOrEmpty(msg)) return;
-            if (!Main.Instance.DebugMode) return;
 
             // Extracted each string from each "row" which would be a string separated with the \n character
             List<string> rows = [.. msg.Split('\n')];
