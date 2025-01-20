@@ -866,7 +866,8 @@ namespace scaleformeter.Client
                     if (speedo != null)
                     {
                         $"{Path.GetFileNameWithoutExtension(file)}.json has been loaded!".Log();
-                        _speedoConfs.Add(Path.GetFileNameWithoutExtension(file), speedo);
+                        if (speedo.Enabled)
+                            _speedoConfs.Add(Path.GetFileNameWithoutExtension(file), speedo);
                     }
                     else
                         $"{Path.GetFileNameWithoutExtension(file)} has an error, please check the config syntax.".Error();
@@ -894,6 +895,9 @@ namespace scaleformeter.Client
 
         public class SpeedoConf
         {
+            [JsonProperty("enabled")]
+            public bool Enabled { get; set; }
+
             [JsonProperty("opacity")]
             public float Opacity { get; set; }
 
