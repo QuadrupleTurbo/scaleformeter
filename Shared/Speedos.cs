@@ -197,7 +197,7 @@ namespace scaleformeter.Client
 
         #region Request configs
 
-        private async void RequestConfigs([FromSource] Player source, NetworkCallbackDelegate cb) => await cb(Json.Stringify(_speedoConfs));      
+        private async void RequestConfigs([FromSource] Player source, NetworkCallbackDelegate cb) => await cb(Json.Stringify(_speedoConfs));
 
         #endregion
 
@@ -463,7 +463,10 @@ namespace scaleformeter.Client
         private async void ScaleformInit(string gfx = null)
         {
             if (!string.IsNullOrEmpty(gfx) && !gfx.StartsWith("scaleformeter"))
+            {
+                "Invalid scaleform name".Error();
                 return;
+            }
 
             // Create a TaskCompletionSource to await the event completion
             var tc = new TaskCompletionSource<string>();
@@ -524,8 +527,16 @@ namespace scaleformeter.Client
             _scaleform = new ScaleformWideScreen(gfx);
 
             // Wait until scaleform is loaded
-            while (!_scaleform.IsLoaded)
+            var currTime = Game.GameTime;
+            while (!_scaleform.IsLoaded && Game.GameTime - currTime < 7000)
                 await BaseScript.Delay(0);
+
+            // This shouldn't happen...
+            if (!_scaleform.IsLoaded)
+            {
+                "Failed to load the scaleform!".Error();
+                return;
+            }
 
             // Get whether the speed unit is mph or kmh
             var speedUnitKvp = API.GetResourceKvpString("scaleformeter:useMph");
@@ -668,6 +679,7 @@ namespace scaleformeter.Client
                 _currentConf = defaultSpeedo.Value;
                 API.SetResourceKvp("scaleformeter:lastSpeedo", defaultSpeedo.Key);
                 _scaleform.CallFunction("SET_CURRENT_SPEEDO_BY_ID", defaultSpeedo.Key, _display3D);
+                "No last speedo found, setting the first speedo as default".Log();
                 return;
             }
 
@@ -678,6 +690,7 @@ namespace scaleformeter.Client
                 _currentConf = defaultSpeedo.Value;
                 API.SetResourceKvp("scaleformeter:lastSpeedo", defaultSpeedo.Key);
                 _scaleform.CallFunction("SET_CURRENT_SPEEDO_BY_ID", defaultSpeedo.Key, _display3D);
+                "Last speedo is found, but doesn't exist anymore, setting the first speedo as default".Log();
                 return;
             }
 
@@ -685,6 +698,7 @@ namespace scaleformeter.Client
             _currentConf = _speedoConfigs[currentSpeedo];
             API.SetResourceKvp("scaleformeter:lastSpeedo", currentSpeedo);
             _scaleform.CallFunction("SET_CURRENT_SPEEDO_BY_ID", currentSpeedo, _display3D);
+            "Last speedo found, setting it as default".Log();
         }
 
         #endregion
@@ -698,7 +712,8 @@ namespace scaleformeter.Client
             if (_obj == null)
             {
                 API.RequestModel(model);
-                while (!API.HasModelLoaded(model))
+                var currTime = Game.GameTime;
+                while (!API.HasModelLoaded(model) && Game.GameTime - currTime < 7000)
                     await BaseScript.Delay(0);
 
                 if (!API.HasModelLoaded(model))
@@ -711,7 +726,7 @@ namespace scaleformeter.Client
                 _obj = await World.CreateProp(_objName, _vehicle.Position, _vehicle.Rotation, false, false);
 
                 // Wait for the id to exist in the network
-                var currTime = Game.GameTime;
+                currTime = Game.GameTime;
                 while (!_obj.Exists() && Game.GameTime - currTime < 7000)
                 {
                     await BaseScript.Delay(100);
@@ -752,7 +767,10 @@ namespace scaleformeter.Client
         {
             // Check if the object exists
             if (_obj == null || !_obj.Exists())
+            {
+                "Updating box params, object doesn't exist".Log();
                 return;
+            }
 
             // Settings
             _obj.Opacity = (int)(_currentConf.Opacity * 255);
