@@ -9,7 +9,6 @@ using CitizenFX.Core.Native;
 using Newtonsoft.Json;
 using System.Collections;
 
-
 #if CLIENT
 
 using CitizenFX.Core.UI;
@@ -920,7 +919,6 @@ namespace scaleformeter.Client
             [JsonProperty("b")]
             public int B { get; set; }
         }
-
 
         public class PosOffset2D
         {
