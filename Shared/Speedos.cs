@@ -858,7 +858,6 @@ namespace scaleformeter.Client
         private void LoadConfigs()
         {
             // Get all the possible speedo configurations
-            Dictionary<string, SpeedoConf> speedoConfs = [];
             Directory.EnumerateFiles($"{API.GetResourcePath(Main.Instance.ResourceName)}/configs/speedos", "*.json").ToList().ForEach(file =>
             {
                 try
