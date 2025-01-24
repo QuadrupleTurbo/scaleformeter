@@ -27,8 +27,6 @@ namespace scaleformeter.Client
 
             // Load the speedos
             new Speedos();
-
-            "Client started".Log();
         }
 
         #endregion

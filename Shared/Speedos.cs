@@ -198,7 +198,11 @@ namespace scaleformeter.Client
 
         #region Request configs
 
-        private async void RequestConfigs([FromSource] Player source, NetworkCallbackDelegate cb) => await cb(Json.Stringify(_speedoConfs));
+        private void RequestConfigs([FromSource] Player source, NetworkCallbackDelegate cb)
+        {
+            "Requested configs from the client".Log();
+            cb.Invoke(Json.Stringify(_speedoConfs));
+        }
 
         #endregion
 
@@ -485,11 +489,15 @@ namespace scaleformeter.Client
                     return;
                 }
 
+                "Triggering the event for the configs...".Log();
+
                 // Request the configs from the server
                 BaseScript.TriggerServerEvent("scaleformeter:requestConfigs", new Action<string>(tc.SetResult));
 
                 // Wait until the event is completed
                 _speedoConfigs = Json.Parse<Dictionary<string, SpeedoConf>>(await tc.Task);
+
+                "Configs have been been received and loaded".Log();
             }
 
             // If the configs are empty, return
