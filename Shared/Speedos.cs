@@ -700,43 +700,47 @@ namespace scaleformeter.Client
             // Attach the ticks
             Main.Instance.AttachTick(ScaleformThread);
 
-            // Register commands
-            API.RegisterCommand("sfm", new Action<int, List<object>, string>(async (source, args, raw) =>
+            // Register commands (only if specified in the main config)
+            if (_mainConf.ExposeCommands)
             {
-                if (args.Count == 0)
+                API.RegisterCommand("sfm", new Action<int, List<object>, string>(async (source, args, raw) =>
                 {
-                    DisplaySpeedo();
-                    return;
-                }
-                else if (args.Count == 1)
-                {
-                    switch (args[0])
+                    if (args.Count == 0)
                     {
-                        case "prev":
-                            _scaleform.CallFunction("SWITCH_SPEEDO_PREV", _display3D);
-                            GetCurrentSpeedo(true);
-                            break;
-                        case "next":
-                            _scaleform.CallFunction("SWITCH_SPEEDO_NEXT", _display3D);
-                            GetCurrentSpeedo(true);
-                            break;
-                        case "unit":
-                            _scaleform.CallFunction("SWITCH_SPEED_UNIT");
-                            _useMph = !_useMph;
-                            API.SetResourceKvp("scaleformeter:useMph", _useMph.ToString());
-                            break;
-                        case "dim":
-                            _display3D = !_display3D;
-                            _scaleform.CallFunction("SWITCH_SPEEDO_DIMENSION", _display3D);
-                            if (_obj != null)
-                                _obj.Opacity = !_display3D ? 0 : (int)(_currentConf.Opacity * 255);
-                            break;
+                        DisplaySpeedo();
+                        return;
                     }
-                }
-            }), false);
+                    else if (args.Count == 1)
+                    {
                         // Don't do anything if the scaleform isn't ready
                         if (!CanInteractWithScaleform(true))
                             return;
+
+                        switch (args[0].ToString().ToLower())
+                        {
+                            case "prev":
+                                _scaleform.CallFunction("SWITCH_SPEEDO_PREV", _display3D);
+                                GetCurrentSpeedo(true);
+                                break;
+                            case "next":
+                                _scaleform.CallFunction("SWITCH_SPEEDO_NEXT", _display3D);
+                                GetCurrentSpeedo(true);
+                                break;
+                            case "unit":
+                                _useMph = !_useMph;
+                                _scaleform.CallFunction("SWITCH_SPEED_UNIT", _useMph);
+                                API.SetResourceKvp("scaleformeter:useMph", _useMph.ToString());
+                                break;
+                            case "dim":
+                                _display3D = !_display3D;
+                                _scaleform.CallFunction("SWITCH_SPEEDO_DIMENSION", _display3D);
+                                if (_obj != null)
+                                    _obj.Opacity = !_display3D ? 0 : (int)(_currentConf.Opacity * 255);
+                                break;
+                        }
+                    }
+                }), false);
+            }
 
             // Register the key mapping
             API.RegisterKeyMapping("sfm", "Scaleformeter", "keyboard", _mainConf.DefaultDisplayKey);
@@ -1031,6 +1035,9 @@ namespace scaleformeter.Client
         {
             [JsonProperty("defaultDisplayKey")]
             public string DefaultDisplayKey { get; set; }
+
+            [JsonProperty("exposeCommands")]
+            public bool ExposeCommands { get; set; }
         }
 
         public class SpeedoConf
