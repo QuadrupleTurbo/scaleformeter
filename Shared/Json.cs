@@ -19,7 +19,7 @@ namespace scaleformeter
 
                 obj = JsonConvert.DeserializeObject<T>(json, settings);
             }
-            catch (Exception ex)
+            catch
             {
                 obj = null;
             }
@@ -41,7 +41,7 @@ namespace scaleformeter
 
                 obj = JsonConvert.DeserializeObject<T>(json, settings);
             }
-            catch (Exception ex)
+            catch
             {
                 obj = default;
             }
@@ -64,7 +64,7 @@ namespace scaleformeter
 
                 json = JsonConvert.SerializeObject(data, settings);
             }
-            catch (Exception ex)
+            catch
             {
                 json = null;
             }

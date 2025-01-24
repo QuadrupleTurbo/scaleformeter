@@ -148,6 +148,8 @@ namespace scaleformeter.Client
 
             // Initialize scaleform
             ScaleformInit();
+
+            "Attepmted to initialize the scaleform".Log();
         }
 
 #endif
