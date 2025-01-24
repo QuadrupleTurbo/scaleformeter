@@ -146,6 +146,17 @@ namespace scaleformeter.Client
             Main.Instance.AddEventHandler("swfLiveEditor:scaleformUpdated", new Action<string>(ScaleformUpdated));
             Main.Instance.AddEventHandler("onResourceStop", new Action<string>(OnResourceStop));
 
+            // Add exports
+            Main.Instance.ExportList.Add("IsVisible", IsVisibleExport);
+            Main.Instance.ExportList.Add("SetDisplay", SetDisplayExport);
+            Main.Instance.ExportList.Add("Prev", PrevExport);
+            Main.Instance.ExportList.Add("Next", NextExport);
+            Main.Instance.ExportList.Add("SetCurrentSpeedo", SetCurrentSpeedoExport);
+            Main.Instance.ExportList.Add("UseMph", UseMphExport);
+            Main.Instance.ExportList.Add("Use3d", Use3dExport);
+            Main.Instance.ExportList.Add("GetAllSpeedoIds", GetAllSpeedoIdsExport);
+            Main.Instance.ExportList.Add("GetAllSpeedoNames", GetAllSpeedoNamesExport);
+
             // Initialize scaleform
             ScaleformInit();
 
@@ -301,6 +312,122 @@ namespace scaleformeter.Client
                 }
                 _playerProps.Remove(source);
             }
+        }
+
+        #endregion
+
+#endif
+
+        #endregion
+
+        #region Exports
+
+#if CLIENT
+
+        #region Is visible
+
+        public bool IsVisibleExport()
+        {
+            return _isDisplaying;
+        }
+
+        #endregion
+
+        #region Set display
+
+        public void SetDisplayExport(bool state)
+        {
+            DisplaySpeedo(state);
+        }
+
+        #endregion
+
+        #region Prev
+
+        public void PrevExport()
+        {
+            // Don't do anything if the scaleform isn't ready
+            if (!CanInteractWithScaleform(true))
+                return;
+
+            _scaleform.CallFunction("SWITCH_SPEEDO_PREV", _display3D);
+            GetCurrentSpeedo(true);
+        }
+
+        #endregion
+
+        #region Next
+
+        public void NextExport()
+        {
+            // Don't do anything if the scaleform isn't ready
+            if (!CanInteractWithScaleform(true))
+                return;
+
+            _scaleform.CallFunction("SWITCH_SPEEDO_NEXT", _display3D);
+            GetCurrentSpeedo(true);
+        }
+
+        #endregion
+
+        #region Set current speedo
+
+        public void SetCurrentSpeedoExport(string name)
+        {
+            // Don't do anything if the scaleform isn't ready
+            if (!CanInteractWithScaleform(true))
+                return;
+
+            SetCurrentSpeedo(name);
+        }
+
+        #endregion
+
+        #region Unit
+
+        public void UseMphExport(bool state)
+        {
+            // Don't do anything if the scaleform isn't ready
+            if (!CanInteractWithScaleform(true))
+                return;
+
+            _useMph = state;
+            _scaleform.CallFunction("SWITCH_SPEED_UNIT", _useMph);
+            API.SetResourceKvp("scaleformeter:useMph", _useMph.ToString());
+        }
+
+        #endregion
+
+        #region Use 3D
+
+        public void Use3dExport(bool state)
+        {
+            // Don't do anything if the scaleform isn't ready
+            if (!CanInteractWithScaleform(true))
+                return;
+
+            _display3D = state;
+            _scaleform.CallFunction("SWITCH_SPEEDO_DIMENSION", _display3D);
+            if (_obj != null)
+                _obj.Opacity = !_display3D ? 0 : (int)(_currentConf.Opacity * 255);
+        }
+
+        #endregion
+
+        #region Get all speedo ids
+
+        public string[] GetAllSpeedoIdsExport()
+        {
+            return [.. _speedoConfigs.Keys];
+        }
+
+        #endregion
+
+        #region Get all speedo names
+
+        public string[] GetAllSpeedoNamesExport()
+        {
+            return _speedoConfigs.Values.Select(x => x.Name).ToArray();
         }
 
         #endregion
