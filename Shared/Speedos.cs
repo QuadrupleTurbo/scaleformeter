@@ -1042,6 +1042,9 @@ namespace scaleformeter.Client
 
         public class SpeedoConf
         {
+            [JsonProperty("name")]
+            public string Name { get; set; }
+
             [JsonProperty("enabled")]
             public bool Enabled { get; set; }
 
