@@ -444,21 +444,9 @@ namespace scaleformeter.Client
 
         private async Task ScaleformThread()
         {
-            // General checks
-            if 
-            (
-                !_scaleformIsReady ||
-                !_isDisplaying ||
-                API.IsPauseMenuActive() ||
-                !Screen.Fading.IsFadedIn ||
-                API.GetFollowVehicleCamViewMode() == 4 ||
-                _creatingBox || 
-                _isDeletingBox ||
-                !Game.PlayerPed.IsInVehicle()
-            )
-            {
+            // Don't do anything if the scaleform isn't ready
+            if (!CanInteractWithScaleform(false))
                 return;
-            }
 
             // Check if the vehicle is appropriate
             if (_vehicle != null && _vehicle.Exists())
@@ -746,6 +734,9 @@ namespace scaleformeter.Client
                     }
                 }
             }), false);
+                        // Don't do anything if the scaleform isn't ready
+                        if (!CanInteractWithScaleform(true))
+                            return;
 
             // Register the key mapping
             API.RegisterKeyMapping("sfm", "Scaleformeter", "keyboard", _mainConf.DefaultDisplayKey);
@@ -982,6 +973,18 @@ namespace scaleformeter.Client
             }
 
             return speed * 3.6f > 15 && vehicle.CurrentGear != 0 && angle > 15;
+        }
+
+        #endregion
+
+        #region Can intereact with scaleform
+
+        public bool CanInteractWithScaleform(bool notify)
+        {
+            bool state = _scaleformIsReady && _isDisplaying && !API.IsPauseMenuActive() && Screen.Fading.IsFadedIn && API.GetFollowVehicleCamViewMode() != 4 && !_creatingBox && !_isDeletingBox && Game.PlayerPed.IsInVehicle() && !API.IsPlayerSwitchInProgress();
+            if (!state && notify)
+                "You can't interact with the scaleform right now".Error();
+            return state;
         }
 
         #endregion
