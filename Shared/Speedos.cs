@@ -798,13 +798,13 @@ namespace scaleformeter.Client
 
         #region Set current speedo
 
-        private void SetCurrentSpeedo()
+        private void SetCurrentSpeedo(string name = null)
         {
-            // Get the current speedo from the kvp
-            string currentSpeedo = API.GetResourceKvpString("scaleformeter:lastSpeedo");
+            // Get the current speedo from the kvp or the custom name if it's provided
+            string currentSpeedo = !string.IsNullOrEmpty(name) ? name : API.GetResourceKvpString("scaleformeter:lastSpeedo");
 
-            // If the kvp doesn't exist, set the first speedo as default
-            if (string.IsNullOrEmpty(currentSpeedo))
+            // If the kvp doesn't exist, set the first speedo as default, only if the custom name isn't provided
+            if (string.IsNullOrEmpty(currentSpeedo) && name == null)
             {
                 var defaultSpeedo = _speedoConfigs.First();
                 _currentConf = defaultSpeedo.Value;
@@ -814,8 +814,8 @@ namespace scaleformeter.Client
                 return;
             }
 
-            // If for some reason the speedo is found in the kvp, but doesn't exist in the configs, set the first speedo as default
-            if (!_speedoConfigs.ContainsKey(currentSpeedo))
+            // If for some reason the speedo is found in the kvp, but doesn't exist in the configs, set the first speedo as default, only if the custom name isn't provided
+            if (!_speedoConfigs.ContainsKey(currentSpeedo) && name == null)
             {
                 var defaultSpeedo = _speedoConfigs.First();
                 _currentConf = defaultSpeedo.Value;
@@ -825,7 +825,19 @@ namespace scaleformeter.Client
                 return;
             }
 
-            // Should be safe to set the speedo from the kvp now
+            // This check is for the custom speedo name
+            if (!string.IsNullOrEmpty(name))
+            {
+                if (_speedoConfigs.ContainsKey(name))
+                    currentSpeedo = name;
+                else
+                {
+                    "This speedo doesn't exist, please check the name".Error();
+                    return;
+                }
+            }
+
+            // Should be safe to set the speedo
             _currentConf = _speedoConfigs[currentSpeedo];
             API.SetResourceKvp("scaleformeter:lastSpeedo", currentSpeedo);
             _scaleform.CallFunction("SET_CURRENT_SPEEDO_BY_ID", currentSpeedo, _display3D);
