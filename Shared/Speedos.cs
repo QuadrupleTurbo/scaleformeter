@@ -521,7 +521,8 @@ namespace scaleformeter.Client
                 isBatteryLightOn,
                 isDrifting,
                 (int)classType,
-                _currentVehicleName
+                _currentVehicleName,
+                _currentConf.Shake
             );
 
             // The scaleform needs to adjust to the new resolution
@@ -1059,6 +1060,9 @@ namespace scaleformeter.Client
 
             [JsonProperty("enabled")]
             public bool Enabled { get; set; }
+
+            [JsonProperty("shake")]
+            public bool Shake { get; set; }
 
             [JsonProperty("opacity")]
             public float Opacity { get; set; }
