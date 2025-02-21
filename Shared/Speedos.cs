@@ -577,7 +577,7 @@ namespace scaleformeter.Client
         {
             if (!string.IsNullOrEmpty(gfx) && !gfx.StartsWith("scaleformeter"))
             {
-                "Invalid scaleform name".Error();
+                "[Scaleformeter] Invalid scaleform name".Error();
                 return;
             }
 
@@ -651,7 +651,7 @@ namespace scaleformeter.Client
             // This shouldn't happen...
             if (!_scaleform.IsLoaded)
             {
-                "Failed to load the scaleform!".Error();
+                "[Scaleformeter] Failed to load the scaleform!".Error();
                 return;
             }
 
