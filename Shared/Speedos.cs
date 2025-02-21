@@ -448,14 +448,6 @@ namespace scaleformeter.Client
             if (!CanInteractWithScaleform(false))
                 return;
 
-            // Check if the vehicle is appropriate
-            if (_vehicle != null && _vehicle.Exists())
-            {
-                var model = _vehicle.Model;
-                if (model.IsBicycle || model.IsBoat || model.IsHelicopter || model.IsPlane || model.IsTrain || model.IsCargobob)
-                    return;
-            }
-
             var currentVehicle = Game.PlayerPed.CurrentVehicle;
             if (_vehicle != currentVehicle)
             {
