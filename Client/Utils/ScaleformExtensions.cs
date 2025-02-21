@@ -64,9 +64,32 @@ namespace scaleformeter.Client.Utils
             }
         }
 
-        public async Task<object> GetResult<T>(string function)
+        public async Task<object> GetResult<T>(string function, params object[] arguments)
         {
             API.BeginScaleformMovieMethod(Handle, function);
+            foreach (object argument in arguments)
+            {
+                if (argument is int argInt)
+                {
+                    API.PushScaleformMovieMethodParameterInt(argInt);
+                }
+                else if (argument is string || argument is char)
+                {
+                    API.PushScaleformMovieMethodParameterString(argument.ToString());
+                }
+                else if (argument is double || argument is float)
+                {
+                    API.PushScaleformMovieMethodParameterFloat((float)argument);
+                }
+                else if (argument is bool argBool)
+                {
+                    API.PushScaleformMovieMethodParameterBool(argBool);
+                }
+                else
+                {
+                    throw new ArgumentException(string.Format("Unknown argument type '{0}' passed to scaleform with handle {1}...", argument.GetType().Name, Handle), "arguments");
+                }
+            }
             var handle = API.EndScaleformMovieMethodReturn();
             while (!API.IsScaleformMovieMethodReturnValueReady(handle))
                 await BaseScript.Delay(0);
