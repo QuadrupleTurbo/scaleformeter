@@ -482,7 +482,7 @@ namespace scaleformeter.Client
             var isRightIndicatorOn = (dashLights & (1 << 1)) != 0;
             var isHandbrakeLightOn = (dashLights & (1 << 2)) != 0;
             var isEngineLightOn = (dashLights & (1 << 3)) != 0;
-            var isAbsLightOn = (API.GetVehicleWheelSpeed(_vehicle.Handle, 0) == 0.0) && (_vehicle.Speed > 0.0); /* The dashboard abs doesn't show */
+            var isAbsLightOn = GetAbsState(_vehicle); /* The dashboard abs doesn't show */
             var isGasLightOn = (dashLights & (1 << 5)) != 0;
             var isOilLightOn = (dashLights & (1 << 6)) != 0;
             var isHeadLightsOn = (dashLights & (1 << 7)) != 0;
@@ -982,6 +982,18 @@ namespace scaleformeter.Client
             }
 
             return speed * 3.6f > 15 && vehicle.CurrentGear != 0 && angle > 15;
+        }
+
+        #endregion
+
+        #region Get abs state
+
+        private bool GetAbsState(Vehicle vehicle)
+        {
+            var model = _vehicle.Model;
+            if (model.IsBicycle || model.IsBoat || model.IsHelicopter || model.IsPlane || model.IsTrain || model.IsCargobob)
+                return false;
+            return (API.GetVehicleWheelSpeed(vehicle.Handle, 0) == 0.0) && (vehicle.Speed > 0.0);
         }
 
         #endregion
