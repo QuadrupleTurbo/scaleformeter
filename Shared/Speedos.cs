@@ -145,6 +145,7 @@ namespace scaleformeter.Client
             // Add event handlers
             Main.Instance.AddEventHandler("swfLiveEditor:scaleformUpdated", new Action<string>(ScaleformUpdated));
             Main.Instance.AddEventHandler("onResourceStop", new Action<string>(OnResourceStop));
+            Main.Instance.AddEventHandler("scaleformeter:requestConfigs:Client", new Action<string>(RequestConfigs));
 
             // Add exports
             Main.Instance.ExportList.Add("IsVisible", IsVisibleExport);
@@ -170,7 +171,7 @@ namespace scaleformeter.Client
         public Speedos()
         {
             // Add event handlers
-            Main.Instance.AddEventHandler("scaleformeter:requestConfigs", new Action<Player, NetworkCallbackDelegate>(RequestConfigs));
+            Main.Instance.AddEventHandler("scaleformeter:requestConfigs:Server", new Action<Player>(RequestConfigs));
             Main.Instance.AddEventHandler("scaleformeter:createProp", new Action<Player, int, NetworkCallbackDelegate>(CreateProp));
             Main.Instance.AddEventHandler("scaleformeter:deleteProps", new Action<Player>(DeleteProps));
             Main.Instance.AddEventHandler("playerDropped", new Action<Player>(PlayerDropped));
@@ -203,16 +204,35 @@ namespace scaleformeter.Client
 
         #endregion
 
+        #region Request configs
+
+        private void RequestConfigs(string json)
+        {
+            try
+            {
+                _speedoConfigs = Json.Parse<Dictionary<string, SpeedoConf>>(json);
+                if (_speedoConfigs.Count == 0)
+                    return;
+                "Speedo configs have been received and loaded".Log();
+            }
+            catch (Exception e)
+            {
+                $"Error parsing speedo configs: {e.Message}".Error();
+            }
+        }
+
+        #endregion
+
 #endif
 
 #if SERVER
 
         #region Request configs
 
-        private void RequestConfigs([FromSource] Player source, NetworkCallbackDelegate cb)
+        private void RequestConfigs([FromSource] Player source)
         {
             "Requested configs from the client".Log();
-            cb.Invoke(Json.Stringify(_speedoConfs));
+            BaseScript.TriggerClientEvent(source, "scaleformeter:requestConfigs:Client", Json.Stringify(_speedoConfs));
         }
 
         #endregion
@@ -427,7 +447,7 @@ namespace scaleformeter.Client
 
         public string[] GetAllSpeedoNamesExport()
         {
-            return _speedoConfigs.Values.Select(x => x.Name).ToArray();
+            return [.. _speedoConfigs.Values.Select(x => x.Name)];
         }
 
         #endregion
@@ -581,8 +601,8 @@ namespace scaleformeter.Client
                 return;
             }
 
-            // Create a TaskCompletionSource to await the event completion
-            var tc = new TaskCompletionSource<string>();
+            // Declare the current time
+            int currTime;
 
             // Load all the configs (only once)
             if (string.IsNullOrEmpty(gfx) && !_scaleformIsReady)
@@ -600,10 +620,11 @@ namespace scaleformeter.Client
                 "Triggering the event for the configs...".Log();
 
                 // Request the configs from the server
-                BaseScript.TriggerServerEvent("scaleformeter:requestConfigs", new Action<string>(tc.SetResult));
+                BaseScript.TriggerServerEvent("scaleformeter:requestConfigs:Server");
 
-                // Wait until the event is completed
-                _speedoConfigs = Json.Parse<Dictionary<string, SpeedoConf>>(await tc.Task);
+                currTime = Game.GameTime;
+                while (_speedoConfigs.Count == 0 && Game.GameTime - currTime < 7000)
+                    await BaseScript.Delay(0);
 
                 "Configs have been been received and loaded".Log();
             }
@@ -625,9 +646,14 @@ namespace scaleformeter.Client
                 _scaleform.Dispose();
             }
 
+#if DEBUG
+
             // This is only for live editing from the scaleform editor (which is private)
             if (API.GetResourceState("swfLiveEditor") == "started")
             {
+                // Create a TaskCompletionSource to await the event completion
+                var tc = new TaskCompletionSource<string>();
+
                 // Create a TaskCompletionSource to await the event completion
                 tc = new TaskCompletionSource<string>();
 
@@ -640,11 +666,18 @@ namespace scaleformeter.Client
             else
                 gfx ??= "scaleformeter";
 
+#else
+
+           // If the scaleform name is not provided, use the default one
+            gfx ??= "scaleformeter";
+
+#endif
+
             // Request scaleform
             _scaleform = new ScaleformWideScreen(gfx);
 
             // Wait until scaleform is loaded
-            var currTime = Game.GameTime;
+            currTime = Game.GameTime;
             while (!_scaleform.IsLoaded && Game.GameTime - currTime < 7000)
                 await BaseScript.Delay(0);
 
@@ -744,7 +777,7 @@ namespace scaleformeter.Client
             "Scaleform is ready".Log();
         }
 
-        #endregion
+#endregion
 
         #region Display speedo
 
@@ -1044,9 +1077,9 @@ namespace scaleformeter.Client
 
 #endif
 
-        #endregion
+            #endregion
 
-        #region Classes
+            #region Classes
 
         public class MainConf
         {
