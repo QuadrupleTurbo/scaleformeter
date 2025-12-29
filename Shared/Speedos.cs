@@ -131,6 +131,20 @@ namespace scaleformeter.Client
         // Task completion for the correct scaleform name
         private TaskCompletionSource<string> _correctSfTcs = new();
 
+        // Is the vehicle type driftable
+        private bool _isVehicleTypeDriftable;
+
+        // All the dashboard light constants
+        private const int DASH_LEFT_INDICATOR = 1;
+        private const int DASH_RIGHT_INDICATOR = 2;
+        private const int DASH_HANDBRAKE = 4;
+        private const int DASH_ENGINE = 8;
+        private const int DASH_GAS = 32;
+        private const int DASH_OIL = 64;
+        private const int DASH_HEADLIGHTS = 128;
+        private const int DASH_HIGHBEAM = 256;
+        private const int DASH_BATTERY = 512;
+
 #endif
 
 #if SERVER
@@ -198,7 +212,7 @@ namespace scaleformeter.Client
 
         #region Scaleform updated
 
-        private void ScaleformUpdated(string name) => ScaleformInit(name);
+        private void ScaleformUpdated(string name = null) => ScaleformInit(name);
 
         #endregion
 
@@ -491,7 +505,6 @@ namespace scaleformeter.Client
 
         private async Task ScaleformThread()
         {
-            // Don't do anything if the scaleform isn't ready
             if (!CanInteractWithScaleform(false))
                 return;
 
@@ -502,41 +515,53 @@ namespace scaleformeter.Client
                     await DeleteBox();
                 _vehicle = currentVehicle;
                 _currentVehicleName = Tools.ToTitleCase(Game.GetGXTEntry(_vehicle.DisplayName));
+                
+                // Cache expensive model checks
+                var model = _vehicle.Model;
+                _isVehicleTypeDriftable = !(model.IsBike || model.IsBicycle || model.IsBoat || 
+                                             model.IsHelicopter || model.IsPlane || model.IsTrain || 
+                                             model.IsCargobob);
             }
+            
             if (!_vehicle.Exists())
             {
                 await DeleteBox();
                 _vehicle = currentVehicle;
                 _currentVehicleName = Tools.ToTitleCase(Game.GetGXTEntry(_vehicle.DisplayName));
             }
+            
             if (_vehicle.GetPedOnSeat(VehicleSeat.Driver) != Game.PlayerPed)
                 return;
 
             if (_obj != null && !_obj.Exists())
                 await DeleteBox();
 
-            // All the vehicle data
+            // Cache vehicle handle and model to avoid repeated property access
+            int vehicleHandle = _vehicle.Handle;
+            
+            // All the vehicle data - use cached handle
             var ignition = _vehicle.IsEngineRunning;
-            var speed = _vehicle.Speed;
+            var speed = API.GetEntitySpeed(vehicleHandle);
             var kmh = speed * 3.6f;
             var mph = speed * 2.23693629f;
             var gear = _vehicle.CurrentGear;
             var rpm = _vehicle.CurrentRPM;
-            var accel = API.GetControlNormal(0, (int)Control.VehicleAccelerate);
-            var brake = API.GetControlNormal(0, (int)Control.VehicleBrake);
+            var accel = API.GetControlNormal(0, 71); // Use constant instead of enum cast
+            var brake = API.GetControlNormal(0, 72);
             var dashLights = API.GetVehicleDashboardLights();
-            var isLeftIndicatorOn = (dashLights & (1 << 0)) != 0;
-            var isRightIndicatorOn = (dashLights & (1 << 1)) != 0;
-            var isHandbrakeLightOn = (dashLights & (1 << 2)) != 0;
-            var isEngineLightOn = (dashLights & (1 << 3)) != 0;
-            var isAbsLightOn = GetAbsState(_vehicle); /* The dashboard abs doesn't show */
-            var isGasLightOn = (dashLights & (1 << 5)) != 0;
-            var isOilLightOn = (dashLights & (1 << 6)) != 0;
-            var isHeadLightsOn = (dashLights & (1 << 7)) != 0;
-            var isHighBeamLightsOn = (dashLights & (1 << 8)) != 0;
-            var isBatteryLightOn = (dashLights & (1 << 9)) != 0;
-            var isDrifting = IsDrifting(_vehicle);
-            var classType = _vehicle.ClassType;
+
+            var isLeftIndicatorOn = (dashLights & DASH_LEFT_INDICATOR) != 0;
+            var isRightIndicatorOn = (dashLights & DASH_RIGHT_INDICATOR) != 0;
+            var isHandbrakeLightOn = (dashLights & DASH_HANDBRAKE) != 0;
+            var isEngineLightOn = (dashLights & DASH_ENGINE) != 0;
+            var isAbsLightOn = GetAbsState(vehicleHandle, speed);
+            var isGasLightOn = (dashLights & DASH_GAS) != 0;
+            var isOilLightOn = (dashLights & DASH_OIL) != 0;
+            var isHeadLightsOn = (dashLights & DASH_HEADLIGHTS) != 0;
+            var isHighBeamLightsOn = (dashLights & DASH_HIGHBEAM) != 0;
+            var isBatteryLightOn = (dashLights & DASH_BATTERY) != 0;
+            var isDrifting = IsDrifting(vehicleHandle, speed); // Pass values to avoid re-calculating
+            var classType = (int)_vehicle.ClassType;
 
             _scaleform.CallFunction
             (
@@ -559,26 +584,25 @@ namespace scaleformeter.Client
                 isHighBeamLightsOn,
                 isBatteryLightOn,
                 isDrifting,
-                (int)classType,
+                classType,
                 _currentVehicleName,
                 _currentConf.Shake
             );
 
-            // The scaleform needs to adjust to the new resolution
-            if (Screen.Resolution != _lastResolution)
+            // Resolution check - only get resolution once
+            var currentResolution = Screen.Resolution;
+            if (currentResolution != _lastResolution)
             {
-                _lastResolution = Screen.Resolution;
+                _lastResolution = currentResolution;
                 ScaleformInit();
             }
 
-            // If the display is 2D, render it
             if (!_display3D)
             {
                 _scaleform.Render2D();
                 return;
             }
 
-            // Create the box if it hasn't been created yet
             if (!_hasBoxBeenCreated || _obj == null)
             {
                 await CreateBox();
@@ -586,7 +610,7 @@ namespace scaleformeter.Client
                 return;
             }
 
-            // Render the scaleform in 3D via rendertargets
+            // 3D rendering
             API.SetTextRenderId(_rtHandle);
             API.Set_2dLayer(4);
             API.SetScaleformFitRendertarget(_scaleform.Handle, true);
@@ -594,18 +618,17 @@ namespace scaleformeter.Client
             _scaleform.Render2D();
             API.SetTextRenderId(API.GetDefaultScriptRendertargetRenderId());
             API.SetScriptGfxDrawBehindPausemenu(false);
+            
+            // Debug rendering - already behind debug flag, good!
             if (Main.Instance.DebugMode)
             {
                 Tools.DrawEntityBoundingBox(_vehicle, 250, 150, 0, 100);
-                Vector3[] array = Tools.GetEntityBoundingBox(_vehicle.Handle);
+                Vector3[] array = Tools.GetEntityBoundingBox(vehicleHandle);
                 for (int i = 0; i < array.Length; i++)
                 {
-                    Vector3 item = array[i];
-                    Tools.DrawText3D(item, i.ToString());
+                    Tools.DrawText3D(array[i], i.ToString());
                 }
             }
-
-            await Task.FromResult(0);
         }
 
         #endregion
@@ -1021,33 +1044,28 @@ namespace scaleformeter.Client
 
         #region Is drifting
 
-        private bool IsDrifting(Vehicle vehicle)
+        private bool IsDrifting(int vehicleHandle, float speed)
         {
-            if (vehicle.Model.IsBike || vehicle.Model.IsBicycle || vehicle.Model.IsBoat || vehicle.Model.IsHelicopter || vehicle.Model.IsPlane || vehicle.Model.IsTrain || vehicle.Model.IsCargobob)
+            if (speed * 3.6f <= 15 || !_isVehicleTypeDriftable)
                 return false;
 
-            float speed = API.GetEntitySpeed(vehicle.Handle);
-            Vector3 relativeVector = API.GetEntitySpeedVector(vehicle.Handle, true);
-            double angle = Math.Acos(relativeVector.Y / speed) * 180f / Math.PI;
+            Vector3 relativeVector = API.GetEntitySpeedVector(vehicleHandle, true);
+            double angle = Math.Acos(relativeVector.Y / speed) * 180.0 / Math.PI;
 
-            if (double.IsNaN(angle))
-            {
-                angle = 0;
-            }
-
-            return speed * 3.6f > 15 && vehicle.CurrentGear != 0 && angle > 15;
+            return !double.IsNaN(angle) && _vehicle.CurrentGear != 0 && angle > 15;
         }
 
         #endregion
 
         #region Get abs state
 
-        private bool GetAbsState(Vehicle vehicle)
+        private bool GetAbsState(int vehicleHandle, float speed)
         {
-            var model = _vehicle.Model;
-            if (model.IsBicycle || model.IsBoat || model.IsHelicopter || model.IsPlane || model.IsTrain || model.IsCargobob)
+            // Use cached driftable check (excludes bicycles, boats, etc.)
+            if (!_isVehicleTypeDriftable)
                 return false;
-            return (API.GetVehicleWheelSpeed(vehicle.Handle, 0) == 0.0) && (vehicle.Speed > 0.0);
+            
+            return API.GetVehicleWheelSpeed(vehicleHandle, 0) == 0.0 && speed > 0.0;
         }
 
         #endregion
