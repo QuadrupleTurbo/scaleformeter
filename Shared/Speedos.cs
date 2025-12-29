@@ -125,6 +125,12 @@ namespace scaleformeter.Client
         /// </summary>
         private bool _isDeletingBox;
 
+        // Task completion for the create prop
+        private TaskCompletionSource<bool> _createPropTcs = new();
+
+        // Task completion for the correct scaleform name
+        private TaskCompletionSource<string> _correctSfTcs = new();
+
 #endif
 
 #if SERVER
@@ -146,6 +152,8 @@ namespace scaleformeter.Client
             Main.Instance.AddEventHandler("swfLiveEditor:scaleformUpdated", new Action<string>(ScaleformUpdated));
             Main.Instance.AddEventHandler("onResourceStop", new Action<string>(OnResourceStop));
             Main.Instance.AddEventHandler("scaleformeter:requestConfigs:Client", new Action<string>(RequestConfigs));
+            Main.Instance.AddEventHandler("scaleformeter:createProp:Client", new Action<bool>(CreateProp));
+            Main.Instance.AddEventHandler("swfLiveEditor:getCorrectScaleform", new Action<string>(GetCorrectScaleform));
 
             // Add exports
             Main.Instance.ExportList.Add("IsVisible", IsVisibleExport);
@@ -172,7 +180,7 @@ namespace scaleformeter.Client
         {
             // Add event handlers
             Main.Instance.AddEventHandler("scaleformeter:requestConfigs:Server", new Action<Player>(RequestConfigs));
-            Main.Instance.AddEventHandler("scaleformeter:createProp", new Action<Player, int, NetworkCallbackDelegate>(CreateProp));
+            Main.Instance.AddEventHandler("scaleformeter:createProp:Server", new Action<Player, int>(CreateProp));
             Main.Instance.AddEventHandler("scaleformeter:deleteProps", new Action<Player>(DeleteProps));
             Main.Instance.AddEventHandler("playerDropped", new Action<Player>(PlayerDropped));
 
@@ -223,6 +231,25 @@ namespace scaleformeter.Client
 
         #endregion
 
+        #region Create prop
+
+        private void CreateProp(bool success) => _createPropTcs.SetResult(success);
+
+        #endregion
+
+        #region Get correct scaleform
+
+        private void GetCorrectScaleform(string gfx)
+        {
+            // Prevents other scaleforms interfering since the event is global
+            if (!string.IsNullOrEmpty(gfx) && !gfx.StartsWith("scaleformeter")) return;
+
+            // Set the result of the TaskCompletionSource
+            _correctSfTcs.SetResult(gfx);
+        }
+
+        #endregion
+
 #endif
 
 #if SERVER
@@ -239,7 +266,7 @@ namespace scaleformeter.Client
 
         #region Create prop
 
-        private async void CreateProp([FromSource] Player source, int netId, NetworkCallbackDelegate cb)
+        private async void CreateProp([FromSource] Player source, int netId)
         {
             try
             {
@@ -253,7 +280,7 @@ namespace scaleformeter.Client
                 if (Entity.FromNetworkId(netId) == null)
                 {
                     "Object was null".Error();
-                    await cb(false);
+                    source.TriggerEvent("scaleformeter:createProp:Client", false);
                     return;
                 }
 
@@ -270,7 +297,7 @@ namespace scaleformeter.Client
                 if (!API.DoesEntityExist(obj.Handle))
                 {
                     "Prop didn't exist!".Error();
-                    await cb(false);
+                    source.TriggerEvent("scaleformeter:createProp:Client", false);
                     return;
                 }
 
@@ -281,12 +308,12 @@ namespace scaleformeter.Client
 
                 $"Prop was created: {obj.Handle}:{Main.Instance.Clients[API.NetworkGetEntityOwner(obj.Handle)].Name}".Log();
 
-                await cb(true);
+                source.TriggerEvent("scaleformeter:createProp:Client", true);
             }
             catch (Exception e)
             {
                 e.ToString().Error();
-                await cb(false);
+                source.TriggerEvent("scaleformeter:createProp:Client", false);
             }
         }
 
@@ -626,7 +653,7 @@ namespace scaleformeter.Client
                 while (_speedoConfigs.Count == 0 && Game.GameTime - currTime < 7000)
                     await BaseScript.Delay(0);
 
-                "Configs have been been received and loaded".Log();
+                "Configs have been received and loaded".Log();
             }
 
             // If the configs are empty, return
@@ -651,17 +678,13 @@ namespace scaleformeter.Client
             // This is only for live editing from the scaleform editor (which is private)
             if (API.GetResourceState("swfLiveEditor") == "started")
             {
-                // Create a TaskCompletionSource to await the event completion
-                var tc = new TaskCompletionSource<string>();
-
-                // Create a TaskCompletionSource to await the event completion
-                tc = new TaskCompletionSource<string>();
+                _correctSfTcs = new();
 
                 // Get the correct scaleform from the server
-                BaseScript.TriggerServerEvent("swfLiveEditor:getCorrectScaleform", "scaleformeter", new Action<string>(tc.SetResult));
+                BaseScript.TriggerServerEvent("swfLiveEditor:getCorrectScaleform", "scaleformeter");
 
                 // Wait until the event is completed
-                gfx = await tc.Task;
+                gfx = await _correctSfTcs.Task;
             }
             else
                 gfx ??= "scaleformeter";
@@ -907,13 +930,11 @@ namespace scaleformeter.Client
                     return;
                 }
 
-                // Create a TaskCompletionSource to await the event completion
-                var tcs = new TaskCompletionSource<bool>();
-
-                BaseScript.TriggerServerEvent("scaleformeter:createProp", _obj.NetworkId, new Action<bool>(tcs.SetResult));
+                // Send the prop to the server to be registered
+                BaseScript.TriggerServerEvent("scaleformeter:createProp:Server", _obj.NetworkId);
 
                 // Wait until the event is completed
-                var success = await tcs.Task;
+                var success = await _createPropTcs.Task;
 
                 if (!success)
                 {
